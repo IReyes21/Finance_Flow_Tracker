@@ -16,7 +16,6 @@ import json
 import os
 from datetime import datetime
 import matplotlib
-
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -261,8 +260,10 @@ def portfolio_sell(ticker, qty, price):
 class InvestmentApp:
     def __init__(self, root):
         self.root = root
-        root.title("Investment Tracker - Fixed")
-        root.geometry("1100x700")
+        try:
+            root.winfo_toplevel().title("Investment Flow")
+        except:
+            pass
 
         self._chart_canvas = None
         self._chart_fig = None
@@ -341,9 +342,14 @@ class InvestmentApp:
         self.market_text = tk.Text(self.tab_market, height=15)
         self.market_text.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
 
-        # Tips
+        # Tips & Tricks tab
         self.tab_tips = ttk.Frame(self.nb)
         self.nb.add(self.tab_tips, text="Tips & Tricks")
+
+        # Outer frame to add padding
+        tips_frame = ttk.Frame(self.tab_tips, padding=20)
+        tips_frame.pack(fill=tk.BOTH, expand=True)
+
         tips = [
             "Start with companies you understand.",
             "Don't invest money you can't afford to lose.",
@@ -351,23 +357,69 @@ class InvestmentApp:
             "Focus on long-term gains, not daily noise.",
             "Use dollar-cost averaging for long-term buys."
         ]
-        txt = tk.Text(self.tab_tips)
+
+        # Text widget with spacing
+        txt = tk.Text(
+            tips_frame,
+            font=("Segoe UI", 12),
+            spacing1=10,  # space above each line
+            spacing2=4,  # space between wrapped lines
+            spacing3=10,  # space below each line
+            state="normal"  # temporarily editable so we can insert text
+        )
         txt.pack(fill=tk.BOTH, expand=True)
+
+        # Insert content
         txt.insert(tk.END, "\n".join(f"- {t}" for t in tips))
 
-        # News
+        # Make read-only
+        txt.config(state="disabled")
+
+        # News Tab
         self.tab_news = ttk.Frame(self.nb)
         self.nb.add(self.tab_news, text="News")
-        news_controls = ttk.Frame(self.tab_news)
-        news_controls.pack(fill=tk.X, padx=6, pady=6)
+
+        news_main = ttk.Frame(self.tab_news, padding=20)
+        news_main.pack(fill=tk.BOTH, expand=True)
+
+        news_controls = ttk.Frame(news_main)
+        news_controls.pack(fill=tk.X, padx= (10), pady=(10, 15))
+
         ttk.Button(news_controls, text="Load News for Ticker", command=self.load_news).pack(side=tk.LEFT)
-        self.news_list = tk.Listbox(self.tab_news)
-        self.news_list.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
+
+        # Listbox frame (adds padding + scrollbar)
+        list_frame = ttk.Frame(news_main)
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        scroll = ttk.Scrollbar(list_frame)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.news_list = tk.Listbox(
+            list_frame,
+            yscrollcommand=scroll.set,
+            font=("Segoe UI", 11),
+            activestyle="none"
+        )
+        self.news_list.pack(fill=tk.BOTH, expand=True)
+
+        scroll.config(command=self.news_list.yview)
+
         self.news_list.bind("<Double-Button-1>", self.open_selected_news)
 
         # Status
         self.status = ttk.Label(self.root, text="Ready", anchor=tk.W)
         self.status.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def _generate_market_sentiment(self, lines):
+        ups = sum("▲" in line for line in lines)
+        downs = sum("▼" in line for line in lines)
+
+        if ups > downs:
+            return "Markets are trending UP today with positive momentum."
+        elif downs > ups:
+            return "Markets are showing weakness today with negative movement."
+        else:
+            return "Markets are mixed with no clear direction."
 
     # -------------------------
     # Favorites
@@ -481,17 +533,58 @@ class InvestmentApp:
         self._set_status("Loading market overview...")
 
         def bg():
-            idx = {"S&P 500": "^GSPC", "Dow Jones": "^DJI", "NASDAQ": "^IXIC"}
-            output = []
-            for name, symbol in idx.items():
-                p = fetch_price(symbol)
-                if p is None:
-                    output.append(f"{name} ({symbol}): N/A")
-                else:
-                    output.append(f"{name} ({symbol}): ${p:,.2f}")
-            self.root.after(0, lambda: (self.market_text.delete("1.0", tk.END),
-                                        self.market_text.insert(tk.END, "\n".join(output)),
-                                        self._set_status("Market overview loaded")))
+            try:
+                idx = {
+                    "S&P 500": "^GSPC",
+                    "Dow Jones": "^DJI",
+                    "NASDAQ": "^IXIC",
+                    "Russell 2000": "^RUT",
+                    "VIX Volatility Index": "^VIX"
+                }
+
+                lines = []
+
+                for name, symbol in idx.items():
+                    data = yf.Ticker(symbol).history(period="1d")
+
+                    if data.empty:
+                        lines.append(f"{name} ({symbol}): N/A\n")
+                        continue
+
+                    price = data["Close"].iloc[-1]
+                    open_price = data["Open"].iloc[-1]
+                    high = data["High"].iloc[-1]
+                    low = data["Low"].iloc[-1]
+                    vol = data["Volume"].iloc[-1]
+
+                    change = price - open_price
+                    pct = (change / open_price) * 100
+
+                    direction = "▲" if change >= 0 else "▼"
+                    color = "green" if change >= 0 else "red"
+
+                    lines.append(
+                        f"{name} ({symbol})\n"
+                        f"  Price: ${price:,.2f} {direction} ({pct:.2f}%)\n"
+                        f"  High / Low: ${high:,.2f} / ${low:,.2f}\n"
+                        f"  Volume: {vol:,}\n"
+                    )
+
+                # Add a simple sentiment summary
+                sentiment = self._generate_market_sentiment(lines)
+                lines.append("\nMarket Summary:\n" + sentiment)
+
+                self.root.after(
+                    0,
+                    lambda: (
+                        self.market_text.delete("1.0", tk.END),
+                        self.market_text.insert(tk.END, "\n".join(lines)),
+                        self._set_status("Market overview loaded.")
+                    )
+                )
+
+            except Exception as e:
+                self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
 
         threading.Thread(target=bg, daemon=True).start()
 
@@ -572,6 +665,7 @@ class InvestmentApp:
                 display = title if len(title) <= 120 else title[:120] + "..."
 
                 self.news_list.insert(tk.END, display)
+                self.news_list.insert(tk.END, "")
                 links.append(link)
 
             # Store the links (could be strings or dicts)

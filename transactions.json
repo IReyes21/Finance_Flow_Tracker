@@ -1,0 +1,40 @@
+{
+    "2025-11-28": [
+        {
+            "desc": "Coffee",
+            "amount": -3.5,
+            "category": "Food"
+        },
+        {
+            "desc": "Salary (partial)",
+            "amount": 1500,
+            "category": "Income"
+        }
+    ],
+    "2025-11-29": [
+        {
+            "desc": "Groceries",
+            "amount": -42.75,
+            "category": "Groceries"
+        }
+    ],
+    "2025-12-01": [
+        {
+            "desc": "Gold purchase",
+            "amount": -200,
+            "category": "Investment"
+        }
+    ],
+    "2025-12-06": [
+        {
+            "desc": "Salary",
+            "amount": 1000.0,
+            "category": "Income"
+        },
+        {
+            "desc": "Rent",
+            "amount": -500.0,
+            "category": "Rent"
+        }
+    ]
+}

@@ -96,6 +96,7 @@ class App(tk.Tk):
         # Calendar in the middle
         calendar_ui = CalendarUI(frame, data_fetch.get_transactions_for_day)
         calendar_ui.pack(fill='both', expand=True, pady=40)
+        frame.calendar_ui = calendar_ui
 
         # Additional buttons at the bottom
         extra_frame = ttk.Frame(frame)
@@ -134,7 +135,8 @@ class App(tk.Tk):
         container.pack(fill='both', expand=True)
 
         # Charts UI
-        charts_ui = ChartsUI(container, data_fetch.data_fetcher)
+        calendar_ui = self.current_frame.calendar_ui
+        charts_ui = ChartsUI(container, data_fetch.data_fetcher, calendar_ui)
         charts_ui.pack(fill='both', expand=True)
 
         # Back button

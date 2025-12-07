@@ -33,8 +33,7 @@ class ChartsUI(ttk.Frame):
         self.canvas = canvas
 
     def show_line_chart(self):
-        year = 2025
-        month = 11
+        year, month = self.calendar_ui.year, self.calendar_ui.month
         data = self.get_data('daily_totals', year, month)
         fig = Figure(figsize=(6, 4))
         ax = fig.add_subplot(111)
@@ -46,8 +45,7 @@ class ChartsUI(ttk.Frame):
         self.display_chart(fig)
 
     def show_pie_chart(self):
-        year = 2025
-        month = 11
+        year, month = self.calendar_ui.year, self.calendar_ui.month
         data = self.get_data('categories', year, month)
         fig = Figure(figsize=(6, 4))
         ax = fig.add_subplot(111)
@@ -60,8 +58,7 @@ class ChartsUI(ttk.Frame):
         self.display_chart(fig)
 
     def show_bar_chart(self):
-        year = 2025
-        month = 11
+        year, month = self.calendar_ui.year, self.calendar_ui.month
         data = self.get_data('income_expenses', year, month)
         fig = Figure(figsize=(6, 4))
         ax = fig.add_subplot(111)

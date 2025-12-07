@@ -1,7 +1,6 @@
 from tkinter import ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from calendar_ui import get_selected_year_month
 from data_fetch import data_fetcher
 
 

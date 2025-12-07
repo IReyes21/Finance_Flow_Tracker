@@ -122,3 +122,6 @@ class CalendarUI(ttk.Frame):
         self.year = now.year
         self.month = now.month
         self.populate_calendar(self.year, self.month)
+
+    def get_selected_year_month(self):
+        return self.year, self.month

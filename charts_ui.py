@@ -1,12 +1,15 @@
 from tkinter import ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from calendar_ui import get_selected_year_month
+from data_fetch import data_fetcher
 
 
 class ChartsUI(ttk.Frame):
-    def __init__(self, parent, data_fetcher):
+    def __init__(self, parent, data_fetcher, calendar_ui):
         super().__init__(parent)
         self.get_data = data_fetcher
+        self.calendar_ui = calendar_ui
         self.canvas = None
         self.build_ui()
 

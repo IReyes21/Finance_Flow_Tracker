@@ -67,14 +67,18 @@ def get_income_expenses_for_month(year: int, month: int):
     data = load_transactions()
     from datetime import date
     import calendar
+    num_days = calendar.monthrange(year, month)[1]
+
     income = 0.0
     expenses = 0.0
-    for d in range(1, calendar.monthrange(year, month)[1]+1):
-        key = date(year, month, d).isoformat()
+
+    for day in range(1, num_days + 1):
+        key = date(year, month, day).isoformat()
         for t in data.get(key, []):
-            amt = t.get('amount', 0)
-            if amt >= 0:
+            amt = t.get("amount", 0)
+            if amt > 0:
                 income += amt
-            else:
-                expenses += -amt
+            elif amt < 0:
+                expenses += abs(amt)
+
     return {"income": income, "expenses": expenses}

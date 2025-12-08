@@ -164,7 +164,7 @@ class App(tk.Tk):
         desc_entry = tk.Entry(popup, font=("Arial", 14))
         desc_entry.pack(pady=5)
 
-        tk.Label(popup, text="Amount:", font=("Arial", 14)).pack(pady=5)
+        tk.Label(popup, text="Amount: (Note: Use a '-' for Expenses)", font=("Arial", 14)).pack(pady=5)
         amount_entry = tk.Entry(popup, font=("Arial", 14))
         amount_entry.pack(pady=5)
 

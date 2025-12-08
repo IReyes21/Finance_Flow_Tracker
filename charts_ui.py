@@ -35,25 +35,29 @@ class ChartsUI(ttk.Frame):
     def show_line_chart(self):
         year, month = self.calendar_ui.year, self.calendar_ui.month
         data = self.get_data('daily_totals', year, month)
-        fig = Figure(figsize=(6, 4))
+        fig = Figure(figsize=(10, 4))
         ax = fig.add_subplot(111)
         ax.plot(data['dates'], data['values'], marker='o')
         ax.set_title('Daily Totals')
         ax.set_xlabel('Day')
         ax.set_ylabel('Net amount')
+        ax.tick_params(axis='x', rotation=45)
         fig.tight_layout()
         self.display_chart(fig)
 
     def show_pie_chart(self):
         year, month = self.calendar_ui.year, self.calendar_ui.month
         data = self.get_data('categories', year, month)
+        filtered = [(label, value) for label, value in zip(data['labels'], data['values']) if value != 0]
+        filtered_labels = [label for label, value in filtered]
+        filtered_values = [value for label, value in filtered]
         fig = Figure(figsize=(6, 4))
         ax = fig.add_subplot(111)
-        if not data['values']:
+        if not filtered_values:
             ax.text(0.5, 0.5, 'No category data', ha='center', va='center')
         else:
-            ax.pie(data['values'], labels=data['labels'], autopct='%1.1f%%')
-        ax.set_title('Spending by Category (abs values)')
+            ax.pie(filtered_values, labels=filtered_labels, autopct='%1.1f%%')
+        ax.set_title('Spending by Category')
         fig.tight_layout()
         self.display_chart(fig)
 

@@ -5,6 +5,7 @@ Fixed Investment Tracker - Tkinter GUI
 - Autocomplete fixed
 - Auto-refresh controlled and safe
 - Thread stopped on close
+- Added Gold Investment tab
 """
 
 import tkinter as tk
@@ -16,6 +17,7 @@ import json
 import os
 from datetime import datetime
 import matplotlib
+
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -23,6 +25,7 @@ import numpy as np
 import pandas as pd
 import requests
 import webbrowser
+import random
 
 # ---------------------------
 # Config / Constants
@@ -30,10 +33,21 @@ import webbrowser
 AUTO_REFRESH_SECONDS = 10
 FAV_FILE = "favorites.json"
 PORT_FILE = "portfolio.json"
+GOLD_FILE = "gold_portfolio.json"
 POPULAR_TICKERS = [
     "AAPL", "MSFT", "TSLA", "GOOG", "AMZN", "NVDA", "META", "SPY", "QQQ", "AMD",
     "INTC", "NFLX", "BABA", "DIS", "V", "MA", "PYPL", "UBER", "LYFT", "KO", "PEP"
 ]
+
+# Gold price - will be fetched from API
+CURRENT_GOLD_PRICE = 4197.38  # Default value, will be updated
+
+# Gold portfolio structure
+gold_portfolio = {
+    "balance": 0.0,
+    "gold_owned": 0.0,
+    "avg_purchase_price": 0.0
+}
 
 
 # ---------------------------
@@ -58,16 +72,166 @@ def save_json(path, data):
 
 
 # ---------------------------
+# Gold Investment Functions
+# ---------------------------
+def fetch_gold_price():
+    """Fetch current gold price from API"""
+    try:
+        # Try yahoo finance for gold (GC=F is gold futures)
+        gold_ticker = yf.Ticker("GC=F")
+        df = gold_ticker.history(period="1d")
+        if not df.empty:
+            return float(df["Close"].iloc[-1])
+
+        # Fallback to metals API
+        url = "https://api.metals.live/v1/spot/gold"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                return float(data[0].get("price", CURRENT_GOLD_PRICE))
+    except Exception as e:
+        print(f"Error fetching gold price: {e}")
+
+    return CURRENT_GOLD_PRICE  # Return default if API fails
+
+
+def set_gold_balance(amount):
+    """Set starting balance for gold investment"""
+    try:
+        gold_portfolio["balance"] = float(amount)
+        save_json(GOLD_FILE, gold_portfolio)
+        return True, f"Balance set to ${gold_portfolio['balance']:.2f}"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def buy_gold(amount):
+    """Buy gold with specified amount"""
+    try:
+        amount = float(amount)
+        if amount > gold_portfolio["balance"]:
+            return False, "Not enough balance."
+
+        current_price = fetch_gold_price()
+        gold_bought = amount / current_price
+        old_gold = gold_portfolio["gold_owned"]
+        old_price = gold_portfolio["avg_purchase_price"]
+
+        if old_gold == 0:
+            new_avg = current_price
+        else:
+            total_old = old_gold * old_price
+            new_avg = (total_old + amount) / (old_gold + gold_bought)
+
+        gold_portfolio["gold_owned"] += gold_bought
+        gold_portfolio["avg_purchase_price"] = new_avg
+        gold_portfolio["balance"] -= amount
+
+        save_json(GOLD_FILE, gold_portfolio)
+        return True, f"Bought {gold_bought:.4f} oz at ${current_price:.2f} per oz."
+
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+def get_portfolio_summary():
+    """Get gold portfolio summary"""
+    current_price = fetch_gold_price()
+    gold = gold_portfolio["gold_owned"]
+
+    if gold == 0:
+        return (
+            f"Balance: ${gold_portfolio['balance']:.2f}\n"
+            f"Gold Owned: 0 oz\n"
+            f"Current Gold Price: ${current_price:.2f}\n"
+            f"Profit/Loss: $0.00 (0.00%)"
+        )
+    else:
+        current_value = gold * current_price
+        profit = current_value - gold * gold_portfolio["avg_purchase_price"]
+        pct = (profit / (gold * gold_portfolio["avg_purchase_price"])) * 100 if gold_portfolio[
+                                                                                    "avg_purchase_price"] > 0 else 0
+
+        return (
+            f"Balance: ${gold_portfolio['balance']:.2f}\n"
+            f"Gold Owned: {gold:.4f} oz\n"
+            f"Avg Purchase Price: ${gold_portfolio['avg_purchase_price']:.2f}\n"
+            f"Current Gold Price: ${current_price:.2f}\n"
+            f"Current Value: ${current_value:.2f}\n"
+            f"Profit/Loss: ${profit:.2f} ({pct:.2f}%)"
+        )
+
+
+def simulate_and_sell_best(years):
+    """Simulate gold prices and sell at best year"""
+    try:
+        years = int(years)
+        if gold_portfolio["gold_owned"] == 0:
+            return False, "You do not own any gold.", None
+
+        gold = gold_portfolio["gold_owned"]
+        avg_price = gold_portfolio["avg_purchase_price"]
+        future_price = fetch_gold_price()
+        best_year = (0, 0, -999999)  # (year, price, profit)
+        result_text = ""
+
+        for year in range(1, years + 1):
+            # Moderate yearly growth: +1% to +5%
+            change = random.uniform(0.01, 0.05)
+            future_price = round(future_price * (1 + change), 2)
+
+            value = gold * future_price
+            profit = value - gold * avg_price
+            pct = (profit / (gold * avg_price)) * 100 if avg_price > 0 else 0
+
+            result_text += (
+                f"Year {year}: Price = ${future_price:.2f} | "
+                f"Profit = ${profit:.2f} ({pct:.2f}%)\n"
+            )
+
+            if profit > best_year[2]:
+                best_year = (year, future_price, profit)
+
+        # Sell at best year
+        year, price, profit = best_year
+        cash = gold * price
+
+        gold_portfolio["balance"] += cash
+        gold_portfolio["gold_owned"] = 0
+        gold_portfolio["avg_purchase_price"] = 0
+
+        save_json(GOLD_FILE, gold_portfolio)
+
+        final_message = (
+            f"{result_text}\n"
+            f"--- BEST YEAR TO SELL ---\n"
+            f"Year: {year}\n"
+            f"Sell Price: ${price:.2f}\n"
+            f"Cash Received: ${cash:.2f}\n"
+            f"Profit: ${profit:.2f}"
+        )
+        return True, final_message, cash
+
+    except Exception as e:
+        return False, f"Error: {str(e)}", None
+
+
+# ---------------------------
 # App State
 # ---------------------------
 state = {
     "favorites": load_json(FAV_FILE, []),
     "portfolio": load_json(PORT_FILE, {"cash": 10000.0, "positions": {}}),
+    "gold_portfolio": load_json(GOLD_FILE, gold_portfolio),
     "mode": "light",
     "last_price": None,
     "auto_refresh": True,
     "_running": True,  # controls background threads
 }
+
+# Update gold_portfolio from saved state
+gold_portfolio.update(state["gold_portfolio"])
 
 
 # ---------------------------
@@ -342,6 +506,11 @@ class InvestmentApp:
         self.market_text = tk.Text(self.tab_market, height=15)
         self.market_text.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
 
+        # Gold Investment Tab
+        self.tab_gold = ttk.Frame(self.nb)
+        self.nb.add(self.tab_gold, text="Gold Investment")
+        self._build_gold_tab()
+
         # Tips & Tricks tab
         self.tab_tips = ttk.Frame(self.nb)
         self.nb.add(self.tab_tips, text="Tips & Tricks")
@@ -383,7 +552,7 @@ class InvestmentApp:
         news_main.pack(fill=tk.BOTH, expand=True)
 
         news_controls = ttk.Frame(news_main)
-        news_controls.pack(fill=tk.X, padx= (10), pady=(10, 15))
+        news_controls.pack(fill=tk.X, padx=(10), pady=(10, 15))
 
         ttk.Button(news_controls, text="Load News for Ticker", command=self.load_news).pack(side=tk.LEFT)
 
@@ -410,6 +579,82 @@ class InvestmentApp:
         self.status = ttk.Label(self.root, text="Ready", anchor=tk.W)
         self.status.pack(side=tk.BOTTOM, fill=tk.X)
 
+    def _build_gold_tab(self):
+        """Build the Gold Investment tab interface"""
+        # Main container with padding
+        main_frame = ttk.Frame(self.tab_gold, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Title
+        title_label = ttk.Label(main_frame, text="Gold Investment System", font=("Arial", 16, "bold"))
+        title_label.pack(pady=(0, 20))
+
+        # Current Gold Price Display
+        price_frame = ttk.Frame(main_frame)
+        price_frame.pack(fill=tk.X, pady=(0, 20))
+
+        self.gold_price_label = ttk.Label(
+            price_frame,
+            text="Current Gold Price: $--",
+            font=("Arial", 12, "bold")
+        )
+        self.gold_price_label.pack()
+
+        ttk.Button(price_frame, text="Refresh Gold Price", command=self.refresh_gold_price).pack(pady=5)
+
+        # Portfolio Summary Display
+        summary_frame = ttk.Frame(main_frame, relief="groove", borderwidth=2)
+        summary_frame.pack(fill=tk.X, pady=(0, 20), padx=20)
+
+        self.gold_summary_label = ttk.Label(
+            summary_frame,
+            text="Load your portfolio to see summary...",
+            font=("Arial", 10),
+            wraplength=400,
+            justify="left"
+        )
+        self.gold_summary_label.pack(padx=10, pady=10)
+
+        # Balance Section
+        balance_frame = ttk.LabelFrame(main_frame, text="Set Balance", padding=10)
+        balance_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(balance_frame, text="Starting Balance ($):").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        self.balance_entry = ttk.Entry(balance_frame, width=15)
+        self.balance_entry.grid(row=0, column=1, padx=(0, 10))
+        ttk.Button(balance_frame, text="Set Balance", command=self.set_gold_balance).grid(row=0, column=2)
+
+        # Buy Gold Section
+        buy_frame = ttk.LabelFrame(main_frame, text="Buy Gold", padding=10)
+        buy_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(buy_frame, text="Amount to Invest ($):").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        self.buy_entry = ttk.Entry(buy_frame, width=15)
+        self.buy_entry.grid(row=0, column=1, padx=(0, 10))
+        ttk.Button(buy_frame, text="Buy Gold", command=self.buy_gold).grid(row=0, column=2)
+
+        # Simulation Section
+        sim_frame = ttk.LabelFrame(main_frame, text="Simulation & Auto-Sell", padding=10)
+        sim_frame.pack(fill=tk.X, pady=(0, 10))
+
+        ttk.Label(sim_frame, text="Years to Simulate:").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        self.sim_years_entry = ttk.Entry(sim_frame, width=10)
+        self.sim_years_entry.grid(row=0, column=1, padx=(0, 10))
+        ttk.Button(sim_frame, text="Simulate & Auto-Sell Best Year",
+                   command=self.simulate_and_sell).grid(row=0, column=2)
+
+        # Action Buttons
+        action_frame = ttk.Frame(main_frame)
+        action_frame.pack(pady=20)
+
+        ttk.Button(action_frame, text="View Portfolio",
+                   command=self.view_gold_portfolio).pack(side=tk.LEFT, padx=5)
+        ttk.Button(action_frame, text="Reset Portfolio",
+                   command=self.reset_gold_portfolio).pack(side=tk.LEFT, padx=5)
+
+        # Initialize gold price display
+        self.refresh_gold_price()
+
     def _generate_market_sentiment(self, lines):
         ups = sum("▲" in line for line in lines)
         downs = sum("▼" in line for line in lines)
@@ -420,6 +665,81 @@ class InvestmentApp:
             return "Markets are showing weakness today with negative movement."
         else:
             return "Markets are mixed with no clear direction."
+
+    # -------------------------
+    # Gold Investment Methods
+    # -------------------------
+    def refresh_gold_price(self):
+        """Fetch and display current gold price"""
+
+        def bg_task():
+            price = fetch_gold_price()
+            self.root.after(0, lambda: self._update_gold_price_display(price))
+
+        threading.Thread(target=bg_task, daemon=True).start()
+
+    def _update_gold_price_display(self, price):
+        """Update gold price label on UI thread"""
+        self.gold_price_label.config(text=f"Current Gold Price: ${price:,.2f}")
+
+    def set_gold_balance(self):
+        """Set starting balance for gold investment"""
+        amount = self.balance_entry.get()
+        if not amount:
+            messagebox.showerror("Error", "Please enter a balance amount.")
+            return
+
+        success, msg = set_gold_balance(amount)
+        if success:
+            messagebox.showinfo("Success", msg)
+            self.view_gold_portfolio()
+        else:
+            messagebox.showerror("Error", msg)
+
+    def buy_gold(self):
+        """Buy gold with specified amount"""
+        amount = self.buy_entry.get()
+        if not amount:
+            messagebox.showerror("Error", "Please enter an amount to invest.")
+            return
+
+        success, msg = buy_gold(amount)
+        if success:
+            messagebox.showinfo("Gold Purchased", msg)
+            self.view_gold_portfolio()
+        else:
+            messagebox.showerror("Error", msg)
+
+    def view_gold_portfolio(self):
+        """Display gold portfolio summary"""
+        summary = get_portfolio_summary()
+        self.gold_summary_label.config(text=summary)
+
+    def simulate_and_sell(self):
+        """Run simulation and auto-sell at best year"""
+        years = self.sim_years_entry.get()
+        if not years:
+            messagebox.showerror("Error", "Please enter number of years to simulate.")
+            return
+
+        success, msg, cash = simulate_and_sell_best(years)
+        if success:
+            messagebox.showinfo("Simulation Complete", msg)
+            self.view_gold_portfolio()
+        else:
+            messagebox.showerror("Error", msg)
+
+    def reset_gold_portfolio(self):
+        """Reset gold portfolio to initial state"""
+        if messagebox.askyesno("Confirm Reset", "Are you sure you want to reset your gold portfolio?"):
+            gold_portfolio.update({
+                "balance": 0.0,
+                "gold_owned": 0.0,
+                "avg_purchase_price": 0.0
+            })
+            save_json(GOLD_FILE, gold_portfolio)
+            messagebox.showinfo("Success", "Gold portfolio reset successfully.")
+            self.view_gold_portfolio()
 
     # -------------------------
     # Favorites
@@ -961,6 +1281,7 @@ def main():
         # save state and stop threads
         save_json(FAV_FILE, state["favorites"])
         save_json(PORT_FILE, state["portfolio"])
+        save_json(GOLD_FILE, gold_portfolio)
         app.stop()
         # give a moment for background thread to see flag (daemon thread will exit on program close)
         root.destroy()

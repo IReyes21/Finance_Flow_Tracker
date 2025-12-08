@@ -35,6 +35,16 @@
             "desc": "Rent",
             "amount": -500.0,
             "category": "Rent"
+        },
+        {
+            "desc": "Gas",
+            "amount": 45.0,
+            "category": "Transportation"
+        },
+        {
+            "desc": "fast food",
+            "amount": 100.0,
+            "category": "food"
         }
     ]
 }

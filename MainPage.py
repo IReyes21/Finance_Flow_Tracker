@@ -119,10 +119,22 @@ class App(tk.Tk):
         investment_window.title("Investment Tracker")
         investment_window.geometry("1200x750")
 
+        # Make this window modal (grabs focus)
+        investment_window.transient(self)
+        investment_window.grab_set()
+
         investment_app = InvestmentApp(investment_window)
 
+        # When closing window: stop threads + destroy window
+        def on_close():
+            investment_app.stop()  # VERY IMPORTANT
+            investment_window.grab_release()  # Release the grab
+            investment_window.destroy()
+
+        investment_window.protocol("WM_DELETE_WINDOW", on_close)
+
         back_btn = tk.Button(investment_window, text="Back to Calendar",
-                             font=("Arial", 12), command=investment_window.destroy)
+                             font=("Arial", 12), command=on_close)
         back_btn.pack(side=tk.BOTTOM, pady=10)
 
     def show_charts_ui(self):

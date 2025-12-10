@@ -23,6 +23,11 @@
             "desc": "Gold purchase",
             "amount": -200,
             "category": "Investment"
+        },
+        {
+            "desc": "work",
+            "amount": 1000.0,
+            "category": ""
         }
     ],
     "2025-12-06": [
@@ -52,6 +57,20 @@
             "desc": "SEPTA",
             "amount": -5.8,
             "category": "Expenses"
+        }
+    ],
+    "2025-12-07": [
+        {
+            "desc": "Gas",
+            "amount": 50.0,
+            "category": "Transportation"
+        }
+    ],
+    "2025-12-09": [
+        {
+            "desc": "",
+            "amount": 10000.0,
+            "category": ""
         }
     ]
 }
